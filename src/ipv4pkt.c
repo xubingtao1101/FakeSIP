@@ -155,8 +155,10 @@ int fs_pkt4_make(uint8_t *buffer, size_t buffer_size, struct sockaddr *saddr,
     udph->len = htons(sizeof(*udph) + udp_payload_size);
     udph->check = 0;
 
-    fprintf(stderr, "[DEBUG] udp_payload_size=%zu, sizeof(udph)=%zu, udph->len=%hu\n",
-            udp_payload_size, sizeof(struct udphdr), udph->len);
+    uint16_t expected_len = (uint16_t) (sizeof(*udph) + udp_payload_size);
+    fprintf(stderr,
+            "[DEBUG] expected_len=%hu, htons(expected_len)=%hu, actual=%hu\n",
+            expected_len, htons(expected_len), udph->len);
 
     if (udp_payload_size) {
         memcpy(udppl, udp_payload, udp_payload_size);
