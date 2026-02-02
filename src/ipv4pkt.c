@@ -152,13 +152,14 @@ int fs_pkt4_make(uint8_t *buffer, size_t buffer_size, struct sockaddr *saddr,
     memset(udph, 0, sizeof(*udph));
     udph->source = sport_be;
     udph->dest = dport_be;
-    udph->len = htons(sizeof(*udph) + udp_payload_size);
+
+    uint16_t udp_total_len = (uint16_t)(sizeof(*udph) + udp_payload_size);
+    // Manual byte swap to avoid htons() bug on some systems
+    udph->len = (udp_total_len >> 8) | ((udp_total_len & 0xff) << 8);
     udph->check = 0;
 
-    uint16_t expected_len = (uint16_t) (sizeof(*udph) + udp_payload_size);
-    fprintf(stderr,
-            "[DEBUG] expected_len=%hu, htons(expected_len)=%hu, actual=%hu\n",
-            expected_len, htons(expected_len), udph->len);
+    fprintf(stderr, "[DEBUG] udp_total_len=%hu, udph->len=%hu\n",
+            udp_total_len, udph->len);
 
     if (udp_payload_size) {
         memcpy(udppl, udp_payload, udp_payload_size);
