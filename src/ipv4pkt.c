@@ -33,6 +33,27 @@
 #include "globvar.h"
 #include "logging.h"
 
+static uint16_t ip_checksum(struct iphdr *iph)
+{
+    uint32_t sum = 0;
+    uint16_t *p;
+    int i;
+
+    // IP 头部长度是 iph->ihl * 4 字节
+    p = (uint16_t *) iph;
+    for (i = 0; i < iph->ihl * 2; i++) {
+        sum += *p;
+        p++;
+    }
+
+    // 进位回卷
+    while (sum >> 16) {
+        sum = (sum & 0xffff) + (sum >> 16);
+    }
+
+    return (uint16_t) ~sum;
+}
+
 int fs_pkt4_parse(void *pkt_data, int pkt_len, struct sockaddr *saddr,
                   struct sockaddr *daddr, uint8_t *ttl,
                   struct udphdr **udph_ptr, int *udp_payload_len)
@@ -138,7 +159,7 @@ int fs_pkt4_make(uint8_t *buffer, size_t buffer_size, struct sockaddr *saddr,
         memcpy(udppl, udp_payload, udp_payload_size);
     }
 
-    nfq_ip_set_checksum(iph);
+    iph->check = ip_checksum(iph);
     nfq_udp_compute_checksum_ipv4(udph, iph);
 
     return pkt_len;
