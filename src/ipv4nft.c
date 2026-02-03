@@ -120,6 +120,11 @@ int fs_nft4_setup(void)
         "        ip saddr 172.16.0.0/12  return;\n"
         "        ip saddr 192.168.0.0/16 return;\n"
         "        ip saddr 224.0.0.0/3    return;\n"
+        /*
+            exclude specific IPs (from source)
+        */
+        "        ip saddr 119.29.29.29   return;\n"
+        "        ip saddr 114.114.114.114   return;\n"
         "    }\n"
         "\n"
         "    chain fs_postrouting {\n"
@@ -136,6 +141,11 @@ int fs_nft4_setup(void)
         "        ip daddr 172.16.0.0/12  return;\n"
         "        ip daddr 192.168.0.0/16 return;\n"
         "        ip daddr 224.0.0.0/3    return;\n"
+        /*
+            exclude specific IPs (to destination)
+        */
+        "        ip daddr 119.29.29.29   return;\n"
+        "        ip daddr 114.114.114.114   return;\n"
         "    }\n"
         "\n"
         "    chain fs_rules {\n"
