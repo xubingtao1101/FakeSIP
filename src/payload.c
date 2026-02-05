@@ -29,7 +29,7 @@
 #include "logging.h"
 #include "globvar.h"
 
-#define BUFFLEN 1200
+#define BUFFLEN 2000
 #define SET_BE16(a, u16)         \
     do {                         \
         (a)[0] = (u16) >> (8);   \
