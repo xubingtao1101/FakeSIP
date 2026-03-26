@@ -404,11 +404,15 @@ int fs_rawsend_handle(struct sockaddr_ll *sll, uint8_t *pkt_data, int pkt_len,
         }
 
         if (g_ctx.pktlimit > 0) {
-            int ct_count = 0;
-            res = fs_conntrack_query(saddr, daddr, udph, 0 /* inbound */,
-                                     &ct_count);
+            int ct_count = 0, flow_dir = CT_DIR_INBOUND;
+            res = fs_conntrack_query(saddr, daddr, udph->source, udph->dest,
+                                     0 /* inbound */, &ct_count, &flow_dir);
             if (res < 0) {
                 E(T(fs_conntrack_query));
+                return NF_ACCEPT;
+            }
+            /* flow was initiated outbound: skip fake on inbound packets */
+            if (flow_dir == CT_DIR_OUTBOUND) {
                 return NF_ACCEPT;
             }
             if (ct_count > g_ctx.pktlimit) {
@@ -463,11 +467,15 @@ int fs_rawsend_handle(struct sockaddr_ll *sll, uint8_t *pkt_data, int pkt_len,
         }
 
         if (g_ctx.pktlimit > 0) {
-            int ct_count = 0;
-            res = fs_conntrack_query(saddr, daddr, udph, 1 /* outbound */,
-                                     &ct_count);
+            int ct_count = 0, flow_dir = CT_DIR_OUTBOUND;
+            res = fs_conntrack_query(saddr, daddr, udph->source, udph->dest,
+                                     1 /* outbound */, &ct_count, &flow_dir);
             if (res < 0) {
                 E(T(fs_conntrack_query));
+                goto outbound_send_original;
+            }
+            /* flow was initiated inbound: skip fake on outbound packets */
+            if (flow_dir == CT_DIR_INBOUND) {
                 goto outbound_send_original;
             }
             if (ct_count > g_ctx.pktlimit) {

@@ -22,7 +22,6 @@
 
 #include <stdint.h>
 #include <sys/socket.h>
-#include <netinet/udp.h>
 
 /*
  * Direction constants.
@@ -39,15 +38,20 @@ void fs_conntrack_cleanup(void);
  * fs_conntrack_query() - look up (or create) a flow entry and increment
  *                        the per-direction counter.
  *
- * @saddr:   source address of the packet as it arrived (struct sockaddr *)
- * @daddr:   destination address of the packet
- * @udph:    UDP header pointer (provides sport/dport)
- * @is_outbound: 1 if this packet is outgoing (PACKET_OUTGOING), 0 if inbound
- * @count_out:   set to the updated per-direction packet count for the flow
+ * @saddr:        source address of the packet as it arrived
+ * @daddr:        destination address of the packet
+ * @sport_be:     source port in network byte order
+ * @dport_be:     destination port in network byte order
+ * @is_outbound:  1 if this packet is outgoing (PACKET_OUTGOING), 0 if inbound
+ * @count_out:    set to the updated per-direction packet count for the flow
+ *               (0 if this packet is NOT in the initiating direction)
+ * @flow_dir_out: set to CT_DIR_INBOUND or CT_DIR_OUTBOUND indicating which
+ *               direction initiated the flow (may be NULL)
  *
  * Returns 0 on success, -1 on error.
  */
 int fs_conntrack_query(struct sockaddr *saddr, struct sockaddr *daddr,
-                       struct udphdr *udph, int is_outbound, int *count_out);
+                       uint16_t sport_be, uint16_t dport_be, int is_outbound,
+                       int *count_out, int *flow_dir_out);
 
 #endif /* FS_CONNTRACK_H */

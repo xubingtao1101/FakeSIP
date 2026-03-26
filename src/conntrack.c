@@ -34,7 +34,6 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#include <netinet/udp.h>
 #include <sys/socket.h>
 
 #include "logging.h"
@@ -148,7 +147,8 @@ void fs_conntrack_cleanup(void)
 }
 
 int fs_conntrack_query(struct sockaddr *saddr, struct sockaddr *daddr,
-                       struct udphdr *udph, int is_outbound, int *count_out)
+                       uint16_t sport_be, uint16_t dport_be, int is_outbound,
+                       int *count_out, int *flow_dir_out)
 {
     struct ct_key key;
     uint32_t idx;
@@ -156,7 +156,7 @@ int fs_conntrack_query(struct sockaddr *saddr, struct sockaddr *daddr,
     struct ct_entry *ent;
     int i, dir;
 
-    build_key(&key, saddr, daddr, udph->source, udph->dest);
+    build_key(&key, saddr, daddr, sport_be, dport_be);
     idx = hash_key(&key);
     bucket = &ct_table[idx];
 
@@ -179,6 +179,9 @@ int fs_conntrack_query(struct sockaddr *saddr, struct sockaddr *daddr,
             ent->count++;
         }
         *count_out = (dir == ent->dir) ? ent->count : 0;
+        if (flow_dir_out) {
+            *flow_dir_out = ent->dir;
+        }
         return 0;
     }
 
@@ -204,5 +207,8 @@ int fs_conntrack_query(struct sockaddr *saddr, struct sockaddr *daddr,
     ent->count = 1;
 
     *count_out = 1;
+    if (flow_dir_out) {
+        *flow_dir_out = dir;
+    }
     return 0;
 }
