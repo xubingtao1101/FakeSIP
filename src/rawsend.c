@@ -33,6 +33,7 @@
 #include <linux/netfilter.h>
 #include <libnetfilter_queue/libnetfilter_queue_udp.h>
 
+#include "conntrack.h"
 #include "globvar.h"
 #include "ipv4pkt.h"
 #include "ipv6pkt.h"
@@ -402,6 +403,21 @@ int fs_rawsend_handle(struct sockaddr_ll *sll, uint8_t *pkt_data, int pkt_len,
             snd_ttl = calc_snd_ttl(hop);
         }
 
+        if (g_ctx.pktlimit > 0) {
+            int ct_count = 0;
+            res = fs_conntrack_query(saddr, daddr, udph, 0 /* inbound */,
+                                     &ct_count);
+            if (res < 0) {
+                E(T(fs_conntrack_query));
+                return NF_ACCEPT;
+            }
+            if (ct_count > g_ctx.pktlimit) {
+                E_INFO("%s:%u ===UDP(skip)===> %s:%u", src_ip_str,
+                       ntohs(udph->source), dst_ip_str, ntohs(udph->dest));
+                return NF_ACCEPT;
+            }
+        }
+
         th_payload_get(&payload, &payload_len);
 
         for (i = 0; i < g_ctx.repeat; i++) {
@@ -446,6 +462,21 @@ int fs_rawsend_handle(struct sockaddr_ll *sll, uint8_t *pkt_data, int pkt_len,
             snd_ttl = calc_snd_ttl(hop);
         }
 
+        if (g_ctx.pktlimit > 0) {
+            int ct_count = 0;
+            res = fs_conntrack_query(saddr, daddr, udph, 1 /* outbound */,
+                                     &ct_count);
+            if (res < 0) {
+                E(T(fs_conntrack_query));
+                goto outbound_send_original;
+            }
+            if (ct_count > g_ctx.pktlimit) {
+                E_INFO("%s:%u <===UDP(skip)=== %s:%u", dst_ip_str,
+                       ntohs(udph->dest), src_ip_str, ntohs(udph->source));
+                goto outbound_send_original;
+            }
+        }
+
         th_payload_get(&payload, &payload_len);
 
         for (i = 0; i < g_ctx.repeat; i++) {
@@ -458,6 +489,8 @@ int fs_rawsend_handle(struct sockaddr_ll *sll, uint8_t *pkt_data, int pkt_len,
         }
         E_INFO("%s:%u <===FAKE(*)=== %s:%u", dst_ip_str, ntohs(udph->dest),
                src_ip_str, ntohs(udph->source));
+
+    outbound_send_original:
 
         nbytes = sendto_snat(sll, daddr, pkt_data, pkt_len);
         if (nbytes < 0) {

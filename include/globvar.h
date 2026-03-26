@@ -41,6 +41,7 @@ struct fs_context {
     /* -k */ int killproc;
     /* -m */ uint32_t fwmark;
     /* -n */ uint32_t nfqnum;
+    /* -p */ int pktlimit;
     /* -r */ int repeat;
     /* -s */ int silent;
     /* -t */ uint8_t ttl;

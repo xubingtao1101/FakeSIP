@@ -134,7 +134,7 @@ int fs_nft6_setup(void)
         /*
             send to nfqueue
         */
-        "        meta l4proto udp ct packets 1-5 queue num %" PRIu32
+        "        meta l4proto udp ct packets 1-%d queue num %" PRIu32
         " bypass;\n"
 
         "    }\n"
@@ -143,7 +143,7 @@ int fs_nft6_setup(void)
     fs_nft6_cleanup();
 
     res = snprintf(nft_conf_buff, sizeof(nft_conf_buff), nft_conf_fmt,
-                   g_ctx.fwmask, g_ctx.fwmark, g_ctx.nfqnum);
+                   g_ctx.fwmask, g_ctx.fwmark, g_ctx.pktlimit, g_ctx.nfqnum);
     if (res < 0 || (size_t) res >= sizeof(nft_conf_buff)) {
         E("ERROR: snprintf(): %s", "failure");
         return -1;

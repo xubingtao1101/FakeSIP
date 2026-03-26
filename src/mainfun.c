@@ -32,6 +32,7 @@
 #include <sys/resource.h>
 #include <sys/socket.h>
 
+#include "conntrack.h"
 #include "globvar.h"
 #include "logging.h"
 #include "nfqueue.h"
@@ -62,6 +63,12 @@ static void print_usage(const char *name)
         "Payload Options:\n"
         "  -b <file>          use UDP payload from binary file\n"
         "  -u <uri>           use specified SIP URI\n"
+        "\n"
+        "Packet Limit Options:\n"
+        "  -p <count>         send fake packets only for the first <count> "
+        "UDP\n"
+        "                     packets in the initiating direction (default: "
+        "1)\n"
         "\n"
         "General Options:\n"
         "  -0                 process inbound packets\n"
@@ -124,7 +131,7 @@ int main(int argc, char *argv[])
 
     plinfo_cnt = iface_cnt = 0;
 
-    while ((opt = getopt(argc, argv, "0146ab:dfgi:km:n:r:st:u:w:x:y:z")) !=
+    while ((opt = getopt(argc, argv, "0146ab:dfgi:km:n:p:r:st:u:w:x:y:z")) !=
            -1) {
         switch (opt) {
             case '0':
@@ -242,6 +249,16 @@ int main(int argc, char *argv[])
                     goto free_mem;
                 }
                 g_ctx.nfqnum = tmp;
+                break;
+
+            case 'p':
+                tmp = strtoull(optarg, NULL, 0);
+                if (!tmp || tmp > UINT16_MAX) {
+                    fprintf(stderr, "%s: invalid value for -p.\n", argv[0]);
+                    print_usage(argv[0]);
+                    goto free_mem;
+                }
+                g_ctx.pktlimit = (int) tmp;
                 break;
 
             case 'r':
@@ -395,10 +412,16 @@ int main(int argc, char *argv[])
         goto cleanup_payload;
     }
 
+    res = fs_conntrack_setup();
+    if (res < 0) {
+        EE(T(fs_conntrack_setup));
+        goto cleanup_srcinfo;
+    }
+
     res = fs_rawsend_setup();
     if (res < 0) {
         EE(T(fs_rawsend_setup));
-        goto cleanup_srcinfo;
+        goto cleanup_conntrack;
     }
 
     res = fs_nfq_setup();
@@ -471,6 +494,9 @@ cleanup_nfq:
 
 cleanup_rawsend:
     fs_rawsend_cleanup();
+
+cleanup_conntrack:
+    fs_conntrack_cleanup();
 
 cleanup_srcinfo:
     fs_srcinfo_cleanup();

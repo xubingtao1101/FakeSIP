@@ -88,7 +88,7 @@ static int ipt6_iface_setup(void)
 
 int fs_ipt6_setup(void)
 {
-    char xmark_str[64], nfqnum_str[32];
+    char xmark_str[64], nfqnum_str[32], connbytes_str[32];
     size_t i, ipt_cmds_cnt;
     int res;
     char *ipt_cmds[][32] = {
@@ -142,7 +142,7 @@ int fs_ipt6_setup(void)
          "-m",
          "connbytes",
          "--connbytes",
-         "1:5",
+         connbytes_str,
          "--connbytes-dir",
          "both",
          "--connbytes-mode",
@@ -165,6 +165,13 @@ int fs_ipt6_setup(void)
 
     res = snprintf(nfqnum_str, sizeof(nfqnum_str), "%" PRIu32, g_ctx.nfqnum);
     if (res < 0 || (size_t) res >= sizeof(nfqnum_str)) {
+        E("ERROR: snprintf(): %s", "failure");
+        return -1;
+    }
+
+    res = snprintf(connbytes_str, sizeof(connbytes_str), "1:%d",
+                   g_ctx.pktlimit);
+    if (res < 0 || (size_t) res >= sizeof(connbytes_str)) {
         E("ERROR: snprintf(): %s", "failure");
         return -1;
     }
