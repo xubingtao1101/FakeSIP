@@ -51,7 +51,20 @@ static int sock4fd = -1;
 static int sock4if = -1;
 static int sock6fd = -1;
 static int sock6if = -1;
-static uint32_t inbound_pkt_count = 0;
+
+#define STREAM_COUNTER_CAPACITY 2048
+
+struct stream_counter {
+    int initialized;
+    uint16_t sport_be;
+    uint16_t dport_be;
+    uint32_t count;
+    struct sockaddr_storage saddr;
+    struct sockaddr_storage daddr;
+};
+
+static struct stream_counter stream_counters[STREAM_COUNTER_CAPACITY];
+static size_t stream_counter_next = 0;
 
 void fs_rawsend_cleanup(void);
 
@@ -109,6 +122,81 @@ static void ipaddr_to_str(struct sockaddr *addr, char ipstr[INET6_ADDRSTRLEN])
 
 invalid:
     memcpy(ipstr, invalid, sizeof(invalid));
+}
+
+
+static int same_sockaddr(struct sockaddr *addr1, struct sockaddr *addr2)
+{
+    struct sockaddr_in *in1, *in2;
+    struct sockaddr_in6 *in61, *in62;
+
+    if (addr1->sa_family != addr2->sa_family) {
+        return 0;
+    }
+
+    if (addr1->sa_family == AF_INET) {
+        in1 = (struct sockaddr_in *) addr1;
+        in2 = (struct sockaddr_in *) addr2;
+
+        return in1->sin_addr.s_addr == in2->sin_addr.s_addr;
+    } else if (addr1->sa_family == AF_INET6) {
+        in61 = (struct sockaddr_in6 *) addr1;
+        in62 = (struct sockaddr_in6 *) addr2;
+
+        return memcmp(&in61->sin6_addr, &in62->sin6_addr,
+                      sizeof(in61->sin6_addr)) == 0;
+    }
+
+    return 0;
+}
+
+
+static uint32_t stream_counter_inc(struct sockaddr *saddr, struct sockaddr *daddr,
+                                   uint16_t sport_be, uint16_t dport_be)
+{
+    size_t i, idx;
+    struct stream_counter *sc;
+
+    for (i = 0; i < STREAM_COUNTER_CAPACITY; i++) {
+        sc = &stream_counters[i];
+        if (!sc->initialized) {
+            continue;
+        }
+
+        if (!same_sockaddr((struct sockaddr *) &sc->saddr, saddr)) {
+            continue;
+        }
+        if (!same_sockaddr((struct sockaddr *) &sc->daddr, daddr)) {
+            continue;
+        }
+        if (sc->sport_be != sport_be || sc->dport_be != dport_be) {
+            continue;
+        }
+
+        sc->count++;
+        return sc->count;
+    }
+
+    idx = stream_counter_next;
+    sc = &stream_counters[idx];
+    memset(sc, 0, sizeof(*sc));
+
+    if (saddr->sa_family == AF_INET) {
+        memcpy(&sc->saddr, saddr, sizeof(struct sockaddr_in));
+        memcpy(&sc->daddr, daddr, sizeof(struct sockaddr_in));
+    } else {
+        memcpy(&sc->saddr, saddr, sizeof(struct sockaddr_in6));
+        memcpy(&sc->daddr, daddr, sizeof(struct sockaddr_in6));
+    }
+
+    sc->sport_be = sport_be;
+    sc->dport_be = dport_be;
+    sc->count = 1;
+    sc->initialized = 1;
+
+    stream_counter_next = (stream_counter_next + 1) % STREAM_COUNTER_CAPACITY;
+
+    return 1;
 }
 
 
@@ -382,6 +470,7 @@ int fs_rawsend_handle(struct sockaddr_ll *sll, uint8_t *pkt_data, int pkt_len,
             Inbound UDP packet.
         */
         int process_fake;
+        uint32_t stream_pkt_count;
 
         sll->sll_pkttype = 0;
 
@@ -391,11 +480,12 @@ int fs_rawsend_handle(struct sockaddr_ll *sll, uint8_t *pkt_data, int pkt_len,
             return NF_ACCEPT;
         }
 
-        inbound_pkt_count++;
-        process_fake = !g_ctx.pre_count ||
-                       inbound_pkt_count <= (uint32_t) g_ctx.pre_count;
-        E_INFO("inbound counter=%" PRIu32 ", p_limit=%d, action=%s",
-               inbound_pkt_count, g_ctx.pre_count,
+        stream_pkt_count = stream_counter_inc(saddr, daddr, udph->source,
+                                              udph->dest);
+        process_fake = !g_ctx.pre_count || stream_pkt_count <= (uint32_t) g_ctx.pre_count;
+        E_INFO("inbound stream=%s:%u->%s:%u, counter=%" PRIu32 ", p_limit=%d, action=%s",
+               src_ip_str, ntohs(udph->source), dst_ip_str, ntohs(udph->dest),
+               stream_pkt_count, g_ctx.pre_count,
                process_fake ? "send_fake" : "skip_fake");
 
         if (!process_fake) {
