@@ -392,9 +392,11 @@ int fs_rawsend_handle(struct sockaddr_ll *sll, uint8_t *pkt_data, int pkt_len,
         }
 
         inbound_pkt_count++;
-        process_fake = !g_ctx.pre_count || inbound_pkt_count <= (uint32_t) g_ctx.pre_count;
-        E_INFO("inbound counter=%" PRIu32 ", p_limit=%d, action=%s", inbound_pkt_count,
-               g_ctx.pre_count, process_fake ? "send_fake" : "skip_fake");
+        process_fake = !g_ctx.pre_count ||
+                       inbound_pkt_count <= (uint32_t) g_ctx.pre_count;
+        E_INFO("inbound counter=%" PRIu32 ", p_limit=%d, action=%s",
+               inbound_pkt_count, g_ctx.pre_count,
+               process_fake ? "send_fake" : "skip_fake");
 
         if (!process_fake) {
             E_INFO("%s:%u ===UDP(~)===> %s:%u", src_ip_str,
