@@ -543,9 +543,8 @@ int fs_rawsend_handle(struct sockaddr_ll *sll, uint8_t *pkt_data, int pkt_len,
             snd_ttl = calc_snd_ttl(hop);
         }
 
-        th_payload_get(&payload, &payload_len);
-
         for (i = 0; i < g_ctx.repeat; i++) {
+            th_payload_get(&payload, &payload_len);
             res = send_payload(sll, daddr, saddr, snd_ttl, udph->dest,
                                udph->source, NO_SNAT);
             if (res < 0) {
@@ -594,9 +593,8 @@ int fs_rawsend_handle(struct sockaddr_ll *sll, uint8_t *pkt_data, int pkt_len,
             snd_ttl = calc_snd_ttl(hop);
         }
 
-        th_payload_get(&payload, &payload_len);
-
         for (i = 0; i < g_ctx.repeat; i++) {
+            th_payload_get(&payload, &payload_len);
             res = send_payload(sll, saddr, daddr, snd_ttl, udph->source,
                                udph->dest, NEED_SNAT);
             if (res < 0) {
