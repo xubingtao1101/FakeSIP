@@ -151,8 +151,9 @@ static int same_sockaddr(struct sockaddr *addr1, struct sockaddr *addr2)
 }
 
 
-static uint32_t stream_counter_inc(struct sockaddr *saddr, struct sockaddr *daddr,
-                                   uint16_t sport_be, uint16_t dport_be)
+static uint32_t stream_counter_inc(struct sockaddr *saddr,
+                                   struct sockaddr *daddr, uint16_t sport_be,
+                                   uint16_t dport_be)
 {
     size_t i, idx;
     struct stream_counter *sc;
@@ -197,6 +198,37 @@ static uint32_t stream_counter_inc(struct sockaddr *saddr, struct sockaddr *dadd
     stream_counter_next = (stream_counter_next + 1) % STREAM_COUNTER_CAPACITY;
 
     return 1;
+}
+
+
+static int inbound_stream_exists_for_outbound(struct sockaddr *saddr,
+                                              struct sockaddr *daddr,
+                                              uint16_t sport_be,
+                                              uint16_t dport_be)
+{
+    size_t i;
+    struct stream_counter *sc;
+
+    for (i = 0; i < STREAM_COUNTER_CAPACITY; i++) {
+        sc = &stream_counters[i];
+        if (!sc->initialized) {
+            continue;
+        }
+
+        if (!same_sockaddr((struct sockaddr *) &sc->saddr, daddr)) {
+            continue;
+        }
+        if (!same_sockaddr((struct sockaddr *) &sc->daddr, saddr)) {
+            continue;
+        }
+        if (sc->sport_be != dport_be || sc->dport_be != sport_be) {
+            continue;
+        }
+
+        return 1;
+    }
+
+    return 0;
 }
 
 
@@ -482,8 +514,10 @@ int fs_rawsend_handle(struct sockaddr_ll *sll, uint8_t *pkt_data, int pkt_len,
 
         stream_pkt_count = stream_counter_inc(saddr, daddr, udph->source,
                                               udph->dest);
-        process_fake = !g_ctx.pre_count || stream_pkt_count <= (uint32_t) g_ctx.pre_count;
-        E_INFO("inbound stream=%s:%u->%s:%u, counter=%" PRIu32 ", p_limit=%d, action=%s",
+        process_fake = !g_ctx.pre_count ||
+                       stream_pkt_count <= (uint32_t) g_ctx.pre_count;
+        E_INFO("inbound stream=%s:%u->%s:%u, counter=%" PRIu32
+               ", p_limit=%d, action=%s",
                src_ip_str, ntohs(udph->source), dst_ip_str, ntohs(udph->dest),
                stream_pkt_count, g_ctx.pre_count,
                process_fake ? "send_fake" : "skip_fake");
@@ -538,6 +572,13 @@ int fs_rawsend_handle(struct sockaddr_ll *sll, uint8_t *pkt_data, int pkt_len,
         if (!g_ctx.inbound) {
             E_INFO("%s:%u <===UDP(~)=== %s:%u", dst_ip_str, ntohs(udph->dest),
                    src_ip_str, ntohs(udph->source));
+            return NF_ACCEPT;
+        }
+
+        if (inbound_stream_exists_for_outbound(saddr, daddr, udph->source,
+                                               udph->dest)) {
+            E_INFO("%s:%u <===FAKE-SKIP=== %s:%u", dst_ip_str,
+                   ntohs(udph->dest), src_ip_str, ntohs(udph->source));
             return NF_ACCEPT;
         }
 
