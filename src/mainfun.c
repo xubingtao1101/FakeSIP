@@ -78,6 +78,7 @@ static void print_usage(const char *name)
         "  -g                 disable hop count estimation\n"
         "  -m <mark>          fwmark for bypassing the queue\n"
         "  -n <number>        netfilter queue number\n"
+        "  -p <count>         send fake packets only for first <count> inbound UDP packets\n"
         "  -r <repeat>        duplicate generated packets for <repeat> times\n"
         "  -t <ttl>           TTL for generated packets\n"
         "  -x <mask>          set the mask for fwmark\n"
@@ -124,7 +125,7 @@ int main(int argc, char *argv[])
 
     plinfo_cnt = iface_cnt = 0;
 
-    while ((opt = getopt(argc, argv, "0146ab:dfgi:km:n:r:st:u:w:x:y:z")) !=
+    while ((opt = getopt(argc, argv, "0146ab:dfgi:km:n:p:r:st:u:w:x:y:z")) !=
            -1) {
         switch (opt) {
             case '0':
@@ -242,6 +243,16 @@ int main(int argc, char *argv[])
                     goto free_mem;
                 }
                 g_ctx.nfqnum = tmp;
+                break;
+
+            case 'p':
+                tmp = strtoull(optarg, NULL, 0);
+                if (!tmp || tmp > UINT32_MAX) {
+                    fprintf(stderr, "%s: invalid value for -p.\n", argv[0]);
+                    print_usage(argv[0]);
+                    goto free_mem;
+                }
+                g_ctx.pre_count = tmp;
                 break;
 
             case 'r':

@@ -48,6 +48,7 @@ struct fs_context {
     /* -x */ uint32_t fwmask;
     /* -y */ int dynamic_pct;
     /* -z */ int use_iptables;
+    /* -p */ int pre_count;
 };
 
 extern struct fs_context g_ctx;
